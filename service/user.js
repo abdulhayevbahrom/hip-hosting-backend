@@ -1,41 +1,41 @@
+require("dotenv").config();
 const UserDB = require("../models/user.model");
 const { v4: uuidv4 } = require("uuid");
 const nodemailer = require("nodemailer");
 const jwt = require("../utils/jwt.helper");
-
-const transporter = nodemailer.createTransport({
-  service: process.env.SERVICE, // "gmail" yoki SMTP server sozlamalarini kiritish
-  auth: {
-    user: process.env.EMAIL, // Emailingiz
-    pass: process.env.PASSWORD, // Email parolingiz
-  },
-});
+const response = require("../utils/response.helper");
 
 class User {
-  async register(req) {
-    return new Promise(async (resolve, reject) => {
-      try {
-        let exactUser = await UserDB.findOne({ email: req.body.email });
-        if (exactUser) return reject("User already exists");
-        let verificationCode = uuidv4().replace(/-/g, "").slice(0, 10);
-        req.body.password = verificationCode;
-        const newUser = new UserDB(req.body);
-        const savedUser = await newUser.save();
+  async register(req, res) {
+    try {
+      const { email } = req.body;
 
-        if (!savedUser) return reject("User not saved");
+      // Foydalanuvchini tekshirish
+      const exactUser = await UserDB.findOne({ email });
+      if (exactUser) return response.error(res, "User already exists");
 
-        const mailOptions = {
-          from: process.env.EMAIL,
-          to: req.body.email,
-          subject: "🎉 Welcome to HIP-HOSTING!",
-          text: `
+      // Verifikatsiya kodini yaratish
+      const verificationCode = uuidv4().replace(/-/g, "").slice(0, 10);
+      req.body.password = verificationCode;
+
+      // Yangi foydalanuvchini saqlash
+      const newUser = new UserDB(req.body);
+      const savedUser = await newUser.save();
+      if (!savedUser) return response.error(res, "User not saved");
+
+      // Email jo'natish sozlamalari
+      const mailOptions = {
+        from: process.env.EMAIL,
+        to: email,
+        subject: "🎉 Welcome to HIP-HOSTING!",
+        text: `
 Dear user,
 
 Thank you for choosing HIP-HOSTING as your hosting provider! We are excited to have you as a new member of our community.
 
 Your account has been successfully created and is now ready for use. To access your account, please use the following login credentials:
 
-Email: ${req.body.email}
+Email: ${email}
 Password: ${verificationCode}
 
 We recommend you to change your password immediately after logging in to ensure the security of your account.
@@ -45,41 +45,61 @@ Thank you again for choosing HIP-HOSTING. We look forward to serving you!
 Best regards,
 The HIP-HOSTING Team
 Follow us on Telegram: @hiphosting
-          `,
-        };
+      `,
+      };
 
-        let res = await transporter.sendMail(mailOptions);
+      // Nodemailer sozlamalari
+      const transporter = nodemailer.createTransport({
+        service: process.env.SERVICE,
+        auth: {
+          user: process.env.EMAIL,
+          pass: process.env.PASSWORD,
+        },
+      });
 
-        let textField =
-          "Failed to send email. Please check your email settings or try again later.";
-        if (!res.accepted.length) return reject(textField);
-
-        resolve(
-          "User created successfully! Please check your email for verification code."
+      // Email jo'natish
+      const mailResponse = await transporter.sendMail(mailOptions);
+      if (!mailResponse.accepted.length) {
+        return response.error(
+          res,
+          "Failed to send email. Please check your email settings or try again later."
         );
-      } catch (error) {
-        reject(error); // Xatoni qaytarish
       }
-    });
+
+      return response.success(
+        res,
+        "Registered successfully! Please check your email for verification code."
+      );
+    } catch (error) {
+      return response.error(res, error.message);
+    }
   }
 
-  // login
-  async login(req) {
-    return new Promise(async (resolve, reject) => {
-      try {
-        const user = await UserDB.findOne({
-          email: req.body.email,
-          password: req.body.password,
-        });
+  async login(req, res) {
+    try {
+      const user = await UserDB.findOne({
+        email: req.body.email,
+        password: req.body.password,
+      });
 
-        if (!user) return reject("email or password is incorrect");
-        const token = await jwt.generate(user.toObject(), "1d");
+      if (!user) return response.error(res, "login and password is incorrect");
+      const token = await jwt.generate(user.toObject(), "1d");
 
-        resolve({ user, token });
-      } catch (error) {
-        reject(error);
-      }
-    });
+      return response.success(res, "login successfully", { user, token });
+    } catch (error) {
+      return response.error(res, error.message);
+    }
+  }
+
+  // get all user
+  async getAllUser(req, res) {
+    try {
+      const users = await UserDB.find();
+      if (!users) return response.error(res, "User not found");
+      return response.success(res, "User found", users);
+    } catch (error) {
+      return response.error(res, error.message);
+    }
   }
 }
 
