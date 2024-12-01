@@ -7,7 +7,6 @@ const response = require("../utils/response.helper");
 const mongoose = require("mongoose");
 
 class User {
-  // ----------------------------------------------------------------------------------------
   async register(req, res) {
     try {
       const { email } = req.body;
