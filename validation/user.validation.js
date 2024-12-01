@@ -25,7 +25,7 @@ class userValidation {
             password: "password must be string",
             balans: "balans must be number",
             avatar: "avatar must be string",
-            birthday: "birthday must be string",
+            birthday: "birthday must be string and date format",
             country: "country must be string",
           },
           required: {

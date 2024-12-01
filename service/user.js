@@ -4,8 +4,10 @@ const { v4: uuidv4 } = require("uuid");
 const nodemailer = require("nodemailer");
 const jwt = require("../utils/jwt.helper");
 const response = require("../utils/response.helper");
+const mongoose = require("mongoose");
 
 class User {
+  // ----------------------------------------------------------------------------------------
   async register(req, res) {
     try {
       const { email } = req.body;
@@ -57,6 +59,14 @@ Follow us on Telegram: @hiphosting
         },
       });
 
+      transporter.verify((error, success) => {
+        if (error) {
+          console.log(error);
+        } else {
+          console.log("Server is ready to take our messages");
+        }
+      });
+
       // Email jo'natish
       const mailResponse = await transporter.sendMail(mailOptions);
       if (!mailResponse.accepted.length) {
@@ -92,11 +102,76 @@ Follow us on Telegram: @hiphosting
   }
 
   // get all user
+  // async getAllUser(req, res) {
+  //   try {
+  //     const users = await UserDB.find();
+  //     if (!users) return response.error(res, "User not found");
+  //     return response.success(res, "User found", users);
+  //   } catch (error) {
+  //     return response.error(res, error.message);
+  //   }
+  // }
   async getAllUser(req, res) {
     try {
-      const users = await UserDB.find();
-      if (!users) return response.error(res, "User not found");
-      return response.success(res, "User found", users);
+      const { fullname } = req.query;
+      let users;
+      if (fullname) {
+        const regex = new RegExp(fullname, "i"); // Case-insensitive qidirish
+        users = await UserDB.find({ fullname: regex });
+      } else {
+        users = await UserDB.find();
+      }
+
+      if (!users.length) return response.error(res, "User not found");
+
+      return response.success(res, "Users found", users);
+    } catch (error) {
+      return response.error(res, error.message);
+    }
+  }
+
+  // delete user
+  async deleteUser(req, res) {
+    try {
+      const user = await UserDB.findByIdAndDelete(req?.params?.id);
+      if (!user) return response.error(res, "User not found");
+      return response.success(res, "User deleted successfully", user);
+    } catch (error) {
+      return response.error(res, error.message);
+    }
+  }
+
+  // update user
+  async updateUser(req, res) {
+    try {
+      const user = await UserDB.findByIdAndUpdate(req?.params?.id, req.body, {
+        new: true,
+      });
+      if (!user) return response.error(res, "User not found");
+      return response.success(res, "User updated successfully", user);
+    } catch (error) {
+      return response.error(res, error.message);
+    }
+  }
+
+  // block user
+  async blockUser(req, res) {
+    try {
+      let id_state = await new mongoose.Types.ObjectId(req?.params?.id);
+      if (!id_state) return response.error(res, "User not found or invalid id");
+      let status = req.query.status === "true" ? true : false;
+
+      const user = await UserDB.findByIdAndUpdate(
+        req?.params?.id,
+        { status },
+        { new: true }
+      );
+      if (!user) return response.error(res, "User not found");
+      return response.success(
+        res,
+        `User ${status ? "blocked" : "unblocked"}`,
+        user
+      );
     } catch (error) {
       return response.error(res, error.message);
     }
